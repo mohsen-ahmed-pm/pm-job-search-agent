@@ -1,0 +1,26 @@
+﻿# Secrets and credentials
+.env
+credentials.json
+token.json
+
+# Personal profile documents
+Mohsen Profile/
+
+# Data files
+*.xlsx
+
+# One-time utility scripts (not part of the pipeline)
+execution/fix_dates.py
+execution/migrate_assessed_schema.py
+execution/create_modal_secret.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Temp files
+.tmp/
+# Claude Code
+.claude/
