@@ -190,10 +190,16 @@ def update_sheet(filtered_jobs, do_reset=False):
 
     batch_date = date.today().strftime("%Y-%m-%d")
     new_rows = []
+    seen_title_company = set()
     for job in filtered_jobs:
         jid = job.get("_job_id", "")
         if jid and jid in existing_ids:
             continue
+        key = (job.get("title", "").strip().lower(), job.get("company_name", "").strip().lower())
+        if key in seen_title_company:
+            print(f"[update_sheet] Skipping duplicate: {job.get('title','')} @ {job.get('company_name','')}")
+            continue
+        seen_title_company.add(key)
         new_rows.append(_job_to_row(job, batch_date))
 
     if new_rows:

@@ -318,8 +318,22 @@ def assess_jobs():
     all_rows = _read_source_jobs(sheets_svc, source_id)
     print(f"[assess_jobs] Jobs in PM Job Leads: {len(all_rows)}")
 
-    # Filter to only new jobs
+    # Filter to only new jobs (by job_id, then by title+company to catch upstream duplicates)
     new_rows = [r for r in all_rows if len(r) > COL_JOB_ID and r[COL_JOB_ID] not in existing_ids]
+    seen_title_company = {}
+    deduped_rows = []
+    for row in new_rows:
+        title = (row[COL_TITLE] if len(row) > COL_TITLE else "").strip().lower()
+        company = (row[COL_COMPANY] if len(row) > COL_COMPANY else "").strip().lower()
+        key = (title, company)
+        if key not in seen_title_company:
+            seen_title_company[key] = True
+            deduped_rows.append(row)
+        else:
+            t = row[COL_TITLE] if len(row) > COL_TITLE else "?"
+            c = row[COL_COMPANY] if len(row) > COL_COMPANY else "?"
+            print(f"[assess_jobs] Skipping duplicate: {t} @ {c}")
+    new_rows = deduped_rows
     print(f"[assess_jobs] New jobs to assess: {len(new_rows)}")
 
     if not new_rows:
