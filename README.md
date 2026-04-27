@@ -23,6 +23,17 @@ The system uses a 3-layer architecture:
 | Orchestration | Pipeline coordination and error handling | `execution/run_pm_job_search.py` |
 | Execution | Deterministic Python scripts | `execution/` |
 
+## Pipeline
+
+The pipeline runs as two independent Modal functions with separate timeouts:
+
+| Stage | Function | Timeout | What it does |
+|-------|----------|---------|--------------|
+| Stage 1 | `run_daily` | 600s | search → filter → enrich → update_sheet → spawn Stage 2 |
+| Stage 2 | `run_assess` | 3600s | assess_jobs → process_drops → send_email |
+
+Stage 1 finishes in ~5 min. Stage 2 runs independently with a 60-min budget, then sends the single summary email with both collection and assessment stats.
+
 ## Modules
 
 **Module 1 — Job Search & Enrichment**
@@ -43,7 +54,7 @@ Reads candidate profile documents, scores each job 0-100 via Claude Sonnet, flag
 
 ```
 execution/          # Pipeline scripts
-  run_pm_job_search.py   # Orchestrator + Modal entry point
+  run_pm_job_search.py   # Orchestrator + Modal entry points
   search_jobs.py         # SerpAPI search
   filter_jobs.py         # Title + location filtering
   enrich_jobs.py         # Claude Haiku R&Q enrichment
@@ -85,11 +96,14 @@ Supported formats: `.pdf`, `.docx`, `.txt`
 
 ### 5. Run locally
 ```bash
-# Full pipeline
+# Full pipeline (Stage 1 then Stage 2 sequentially)
 python execution/run_pm_job_search.py
 
 # Seed run (backfills last 30 days of jobs)
 python execution/run_pm_job_search.py --seed
+
+# Assessment only
+python execution/run_pm_job_search.py --assess-only
 ```
 
 ## Modal Deployment
@@ -118,6 +132,18 @@ python -m modal deploy execution/run_pm_job_search.py
 ```
 
 The cron fires every other day at 6 AM EST (`0 11 */2 * *` UTC).
+
+### Manual Modal runs
+```powershell
+# Full pipeline (Stage 1 + spawns Stage 2)
+python -m modal run execution/run_pm_job_search.py::run_daily
+
+# Assessment only (Stage 2)
+python -m modal run execution/run_pm_job_search.py::run_assess
+
+# Process drops only
+python -m modal run execution/run_pm_job_search.py::run_drops
+```
 
 ## Output
 

@@ -1,9 +1,9 @@
-# PM Job Search -- Directive
+﻿# PM Job Search -- Directive
 
 ## Purpose
 Automated collection of Product Manager and Product Owner job listings from major job boards via SerpAPI (Google Jobs engine). Filters for relevant opportunities, deduplicates, enriches R&Q via Claude Haiku, and writes to Google Sheets. Runs every other day at 6 AM EST via Modal cron.
 
-This is Module 1 of 2. Module 2 (Job-Profile Match Assessor) runs immediately after and scores jobs against the user profile. Both results are summarized in a single email.
+This is Module 1 of 2. Module 2 (Job-Profile Match Assessor) runs as a separate Modal function immediately after and scores jobs against the user profile. One summary email is sent after Module 2 completes.
 
 ---
 
@@ -14,7 +14,7 @@ This is Module 1 of 2. Module 2 (Job-Profile Match Assessor) runs immediately af
 
 ## Outputs
 - Google Sheet: "PM Job Leads" in folder ID 1uTzfVqvPcS4ROh1F0dM4CQkmGj_CzwYH
-- Email summary to NOTIFICATION_EMAIL after each run (includes Module 2 assessment stats)
+- Email summary sent by Module 2 after assessment completes (includes both collection + assessment stats)
 
 ---
 
@@ -88,8 +88,11 @@ N  - Job ID          (job_id -- dedup key, hidden col)
 ---
 
 ## Deduplication
-On each run, read all Job IDs from column M into a set.
-Skip any incoming job whose job_id already exists in that set.
+
+Two layers prevent duplicate entries:
+
+1. **Job ID dedup** -- on each run, read all Job IDs from column N into a set; skip any incoming job whose job_id already exists
+2. **Title + Company dedup** -- within each batch, skip any job whose (title, company) pair was already seen; prevents duplicates from FULLTIME vs CONTRACTOR query variants of the same listing
 
 ---
 
@@ -97,11 +100,11 @@ Skip any incoming job whose job_id already exists in that set.
 To: NOTIFICATION_EMAIL
 Subject: PM Job Search -- {X} strong matches | {N} new jobs ({date})
 
-Body (in order):
+Sent by Module 2 after assessment completes. Body (in order):
 1. **Module 2 Assessment block (green, prominent):**
-   - Strong Matches count (score ≥ 75)
+   - Strong Matches count (score >= 75)
    - Total jobs assessed
-   - Button: "View Strong Matches" → PM Jobs Assessed sheet
+   - Button: "View Strong Matches" -> PM Jobs Assessed sheet
 2. **Module 1 block:**
    - New jobs added count
    - Breakdown: Remote / Hybrid / Full-time / Contract

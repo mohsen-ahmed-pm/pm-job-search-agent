@@ -69,9 +69,12 @@ Potential Gaps:
 
 ## Deduplication
 
-- On each run, `assess_jobs.py` reads existing Job IDs from column M of "PM Jobs Assessed"
-- Only jobs NOT already present are assessed and appended
-- This means: regular runs assess only new jobs from Module 1; re-running is safe
+Two layers of deduplication prevent duplicate rows:
+
+1. **Job ID dedup** -- `assess_jobs.py` reads existing Job IDs from column M of "PM Jobs Assessed" at the start of each run and skips already-assessed jobs
+2. **Title + Company dedup** -- if the same (title, company) appears multiple times in PM Job Leads with different job_ids (e.g. from FULLTIME vs CONTRACTOR queries), only the first occurrence is assessed
+
+Both layers mean re-running is safe and idempotent.
 
 ---
 
@@ -92,7 +95,12 @@ cd execution
 python process_drops.py
 ```
 
-**Automatic** -- runs as step 6 of the pipeline on every scheduled run. Any rows already flagged "Yes" are moved before the email goes out.
+**On Modal:**
+```powershell
+python -m modal run execution/run_pm_job_search.py::run_drops
+```
+
+**Automatic** -- runs as part of Stage 2 on every scheduled run. Any rows already flagged "Yes" are moved after assessment completes.
 
 ### What happens when process_drops runs:
 - Rows with Drop Job = "Yes" are moved to the "Dropped Jobs" tab (preserving all columns including Drop Reason)
@@ -111,6 +119,7 @@ Place in `Mohsen Profile/` folder (project root):
 
 All files are concatenated into a single profile string passed to Claude.
 Supported formats: `.txt`, `.docx`, `.pdf`.
+Nested subdirectories are supported (Modal Volume may nest files under `/profile/profile/`).
 
 ---
 
@@ -118,28 +127,36 @@ Supported formats: `.txt`, `.docx`, `.pdf`.
 
 | Script | Purpose |
 |--------|---------|
-| `execution/read_profile.py` | Loads profile docs from `Mohsen Profile/` |
-| `execution/assess_jobs.py` | Full assessment pipeline: read -> assess -> write |
+| `execution/read_profile.py` | Loads profile docs from `Mohsen Profile/` or Modal Volume `/profile` |
+| `execution/assess_jobs.py` | Full assessment pipeline: read -> assess -> write (Stage 2) |
 | `execution/process_drops.py` | Move Drop Job=Yes rows to Dropped Jobs tab |
-| `execution/run_pm_job_search.py` | Calls `assess_jobs()` then `process_drops()` after `update_sheet()` |
+| `execution/run_pm_job_search.py` | Orchestrator: `run_assess` Modal function calls `assess_jobs()` then `process_drops()` |
 
 ---
 
 ## Email Summary
 
-Module 2 results are included in the pipeline summary email (sent by `send_email.py`):
+One email is sent per pipeline run, after assessment completes (Stage 2):
 - **Subject:** `PM Job Search -- {X} strong matches | {N} new jobs ({date})`
-- **Assessment block** (green, at top of email): strong match count, total assessed, link to PM Jobs Assessed
-- **Two CTA buttons** at bottom: "View All Jobs" (PM Job Leads) + "View Assessed Jobs" (PM Jobs Assessed)
-
-If assessment is skipped (profile folder empty), the email still sends with Module 1 stats only.
+- **Assessment block** (green, at top): strong match count, total assessed, link to PM Jobs Assessed
+- **Collection block**: new jobs added count, breakdown by remote/hybrid/full-time/contract
+- **Top 5 new listings** table
+- **Two buttons**: "View All Jobs" (PM Job Leads) + "View Assessed Jobs" (PM Jobs Assessed)
 
 ---
 
-## Schedule
+## Schedule & Pipeline Architecture
 
-Module 2 runs as step 5 of the Module 1 pipeline:
-- Every other day at 6 AM EST (Modal cron `0 11 */2 * *`)
+The pipeline runs as two independent Modal functions, each with its own timeout:
+
+| Stage | Function | Timeout | Steps |
+|-------|----------|---------|-------|
+| Stage 1 | `run_daily` | 600s | search → filter → enrich → update_sheet → spawn Stage 2 |
+| Stage 2 | `run_assess` | 3600s | assess_jobs → process_drops → send_email |
+
+- Schedule: every other day at 6 AM EST (Modal cron `0 11 */2 * *`)
+- Stage 1 completes in ~5 minutes and fires Stage 2 asynchronously
+- Stage 2 has a 60-minute budget -- handles up to ~150 jobs before timing out
 - If "Mohsen Profile/" is empty, assessment is skipped gracefully (no pipeline failure)
 
 ---
@@ -149,8 +166,10 @@ Module 2 runs as step 5 of the Module 1 pipeline:
 | Error | Behavior |
 |-------|---------|
 | Profile folder missing or empty | Skip assessment; log warning; pipeline continues |
+| Claude API overloaded (529) | Retry up to 3x with 10s wait between attempts |
+| SSL connection dropped mid-run | Rebuild Sheets API client and retry up to 3x |
 | Claude API error on individual job | Log error, score = 0; continue to next job |
-| Source sheet not found | Raise exception; pipeline fails |
+| Source sheet not found | Raise exception; pipeline fails with error email |
 | JSON parse error from Claude | Log raw response, score = 0, continue |
 | process_drops error | Log warning; pipeline continues (non-fatal) |
 
@@ -167,17 +186,31 @@ Module 2 runs as step 5 of the Module 1 pipeline:
 ## Running Manually
 
 ```bash
-# Assess only (Module 2 standalone)
+# Assess only (Module 2 standalone, local)
 cd execution
 python assess_jobs.py
+
+# Assess only with assess-only flag
+python run_pm_job_search.py --assess-only
 
 # Move flagged drops (run after reviewing PM Jobs Assessed)
 cd execution
 python process_drops.py
 
-# Full pipeline including assessment and drop processing
+# Full pipeline (local -- runs both stages sequentially)
 python run_pm_job_search.py
 
 # Seed run (resets PM Job Leads, assesses all jobs)
 python run_pm_job_search.py --seed
+```
+
+```powershell
+# On Modal -- run full pipeline (Stage 1 + spawns Stage 2)
+python -m modal run execution/run_pm_job_search.py::run_daily
+
+# On Modal -- run assessment only (Stage 2)
+python -m modal run execution/run_pm_job_search.py::run_assess
+
+# On Modal -- run drops only
+python -m modal run execution/run_pm_job_search.py::run_drops
 ```
