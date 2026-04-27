@@ -6,6 +6,7 @@ and writes results to 'PM Jobs Assessed' sheet. Only assesses new jobs (deduplic
 
 import os
 import json
+import ssl
 import time
 from datetime import date
 from anthropic import Anthropic
@@ -358,13 +359,22 @@ def assess_jobs():
 
         # Flush to Sheets every WRITE_BATCH_SIZE rows (and on the last row)
         if len(output_rows) == WRITE_BATCH_SIZE or i == len(new_rows):
-            sheets_svc.spreadsheets().values().append(
-                spreadsheetId=output_id,
-                range="Jobs!A1",
-                valueInputOption="USER_ENTERED",
-                insertDataOption="INSERT_ROWS",
-                body={"values": output_rows}
-            ).execute()
+            for attempt in range(3):
+                try:
+                    sheets_svc.spreadsheets().values().append(
+                        spreadsheetId=output_id,
+                        range="Jobs!A1",
+                        valueInputOption="USER_ENTERED",
+                        insertDataOption="INSERT_ROWS",
+                        body={"values": output_rows}
+                    ).execute()
+                    break
+                except ssl.SSLEOFError:
+                    if attempt < 2:
+                        print(f"[assess_jobs] SSL connection dropped, rebuilding client (attempt {attempt+1}/3)...")
+                        sheets_svc = build("sheets", "v4", credentials=creds)
+                    else:
+                        raise
             total_written += len(output_rows)
             print(f"[assess_jobs] Written {total_written}/{len(new_rows)} rows to sheet.")
             output_rows = []
