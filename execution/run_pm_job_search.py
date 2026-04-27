@@ -183,6 +183,13 @@ def _run_assess():
 
     except ValueError as e:
         print(f"[run_pm_job_search] Skipping assessment: {e}")
+        send_summary(
+            new_count=new_count,
+            breakdown=breakdown,
+            top_jobs=top_jobs,
+            sheet_url=sheet_url,
+            run_date=run_date,
+        )
         return {"assessed_count": 0, "strong_match_count": 0}
     except Exception as e:
         error_msg = traceback.format_exc()

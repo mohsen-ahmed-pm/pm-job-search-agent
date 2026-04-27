@@ -339,7 +339,7 @@ def assess_jobs():
 
     if not new_rows:
         print("[assess_jobs] Nothing to assess.")
-        return 0, sheet_url
+        return 0, 0, sheet_url
 
     # Assess each new job, writing to Sheets in batches to avoid large payload errors
     WRITE_BATCH_SIZE = 20
