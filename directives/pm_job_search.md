@@ -21,7 +21,7 @@ This is Module 1 of 2. Module 2 (Job-Profile Match Assessor) runs as a separate 
 ## Search Queries
 
 Run each query twice: once with employment_type:FULLTIME, once with employment_type:CONTRACTOR.
-Total: 18 API calls/run (~270/month at every-other-day cadence, within 1,000/month Starter plan).
+Total: 24 API calls/run (~360/month at every-other-day cadence, within 1,000/month Starter plan).
 
 Date filter: date_posted:3days on all daily runs. date_posted:month on seed run only (--seed flag).
 
@@ -35,6 +35,9 @@ Queries:
 7. "Product Manager" contract remote OR hybrid "New York"
 8. "Product Owner" remote
 9. "Product Owner" "New York" hybrid
+10. "Lead Product Manager" remote OR hybrid
+11. "Staff Product Manager" remote OR hybrid
+12. "Principal Product Manager" remote OR hybrid
 
 ---
 

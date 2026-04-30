@@ -23,6 +23,9 @@ QUERIES = [
     '"Product Manager" contract remote OR hybrid "New York"',
     '"Product Owner" remote',
     '"Product Owner" "New York" hybrid',
+    '"Lead Product Manager" remote OR hybrid',
+    '"Staff Product Manager" remote OR hybrid',
+    '"Principal Product Manager" remote OR hybrid',
 ]
 
 EMPLOYMENT_TYPES = ["FULLTIME", "CONTRACTOR"]
