@@ -193,9 +193,11 @@ Return ONLY valid JSON with no extra text:
             )
             break
         except Exception as e:
-            if "overloaded" in str(e).lower() and attempt < 2:
-                print(f"[assess_jobs] API overloaded, waiting 30s (attempt {attempt+1}/3)...")
-                time.sleep(10)
+            err = str(e).lower()
+            retryable = "overloaded" in err or "timeout" in err or "connect" in err
+            if retryable and attempt < 2:
+                print(f"[assess_jobs] Transient API error ({type(e).__name__}), retrying (attempt {attempt+1}/3)...")
+                time.sleep(15)
             else:
                 raise
     raw = response.content[0].text.strip()
