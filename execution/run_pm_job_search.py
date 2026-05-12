@@ -21,7 +21,7 @@ Usage:
   Seed run:             python execution/run_pm_job_search.py --seed
   Assess only (local):  python execution/run_pm_job_search.py --assess-only
   Modal deploy:         modal deploy execution/run_pm_job_search.py
-  Modal manual run:     modal run execution/run_pm_job_search.py::run_daily
+  Modal full run:       modal run execution/run_pm_job_search.py::run_full
   Modal assess only:    modal run execution/run_pm_job_search.py::run_assess
   Modal drops only:     modal run execution/run_pm_job_search.py::run_drops
 """
@@ -239,6 +239,18 @@ def run_seed():
 def run_assess():
     """Assess unscored jobs and process drops. Runs independently with 60-min timeout."""
     return _run_assess()
+
+
+@app.function(
+    image=image,
+    secrets=[serpapi_secret, google_secret, anthropic_secret],
+    volumes={"/profile": profile_vol},
+    timeout=4200,
+)
+def run_full():
+    """Manual end-to-end run: Stage 1 + Stage 2 in one session (avoids spawn cancellation)."""
+    _run_collect(seed_run=False)
+    _run_assess()
 
 
 @app.function(
